@@ -16,8 +16,36 @@
   --r:12px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text)}
+html,body{height:100%;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E🍴%3C/text%3E%3C/svg%3E") 8 4, auto}
 body{display:flex;flex-direction:column}
+
+/* 날씨 배너 */
+.weather-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:linear-gradient(135deg,#fff9e6,#fff3cc);border-bottom:1px solid #e8d98a;flex-shrink:0;cursor:pointer}
+.weather-bar:hover{background:linear-gradient(135deg,#fff3cc,#ffe999)}
+.wb-left{display:flex;align-items:center;gap:8px}
+.wb-icon{font-size:22px;line-height:1}
+.wb-info{font-size:12px;color:#5c4200}
+.wb-temp{font-size:16px;font-weight:700;color:#7a5c10}
+.wb-desc{font-size:11px;color:#9b7a30;margin-top:1px}
+.wb-right{font-size:11px;color:#c8a84b;font-weight:500}
+/* 날씨 추천 팝업 */
+.weather-popup{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:9999;align-items:center;justify-content:center}
+.weather-popup.show{display:flex}
+.wp-box{background:#fff;border-radius:16px;padding:20px;max-width:340px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.wp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.wp-title{font-size:16px;font-weight:700;color:#5c4200}
+.wp-close{background:none;border:none;font-size:20px;cursor:pointer;color:#aaa;line-height:1}
+.wp-weather{text-align:center;padding:12px;background:#fff9e6;border-radius:10px;margin-bottom:14px}
+.wp-emoji{font-size:40px;margin-bottom:6px}
+.wp-wdesc{font-size:13px;color:#7a5c10;font-weight:500}
+.wp-wtemp{font-size:24px;font-weight:700;color:#5c4200;margin-top:2px}
+.wp-reason{font-size:11px;color:#aaa;margin-top:4px}
+.wp-rec-title{font-size:13px;font-weight:700;color:#5c4200;margin-bottom:8px}
+.wp-rec-list{display:flex;flex-direction:column;gap:6px}
+.wp-rec-item{padding:10px 12px;background:#fffdf0;border:1px solid #e8d98a;border-radius:8px;cursor:pointer;transition:all .15s}
+.wp-rec-item:hover{background:#fbf2c0;border-color:#c8a84b}
+.wp-rec-nm{font-size:13px;font-weight:500;color:#1a1a1a}
+.wp-rec-why{font-size:11px;color:#9b7a30;margin-top:2px}
 
 .hd{background:#fbf2c0;color:#5c4200;padding:13px 16px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;border-bottom:1.5px solid #e8d98a}
 .hd-l .hd-t{font-size:21px;font-weight:700;letter-spacing:-.5px}
@@ -129,7 +157,35 @@ body{display:flex;flex-direction:column}
   </div>
 </div>
 
-<div class="months" id="mtabs"></div>
+<!-- 날씨 배너 -->
+<div class="weather-bar" id="weatherBar" onclick="document.getElementById('weatherPopup').classList.add('show')">
+  <div class="wb-left">
+    <div class="wb-icon" id="wbIcon">⏳</div>
+    <div class="wb-info">
+      <div class="wb-temp" id="wbTemp">날씨 불러오는 중...</div>
+      <div class="wb-desc" id="wbDesc"></div>
+    </div>
+  </div>
+  <div class="wb-right">오늘의 메뉴 추천 👆</div>
+</div>
+
+<!-- 날씨 추천 팝업 -->
+<div class="weather-popup" id="weatherPopup">
+  <div class="wp-box">
+    <div class="wp-header">
+      <div class="wp-title">🌤️ 오늘의 메뉴 추천</div>
+      <button class="wp-close" onclick="document.getElementById('weatherPopup').classList.remove('show')">✕</button>
+    </div>
+    <div class="wp-weather">
+      <div class="wp-emoji" id="wpEmoji">⏳</div>
+      <div class="wp-wdesc" id="wpDesc">날씨 불러오는 중...</div>
+      <div class="wp-wtemp" id="wpTemp"></div>
+      <div class="wp-reason" id="wpReason"></div>
+    </div>
+    <div class="wp-rec-title">이런 메뉴 어때요?</div>
+    <div class="wp-rec-list" id="wpRecList"></div>
+  </div>
+</div>
 
 <div class="stats">
   <div class="stat"><div class="stat-n" id="sv">0</div><div class="stat-l">이번달 방문</div></div>
@@ -238,95 +294,242 @@ let visits={}, userRests=[], hiddenRests=[], leafletMarkers={};
 let pendingLat=null, pendingLng=null;
 let gmap=null;
 
-// ── JSONBin 실시간 공유 ────────────────────────────────
-const JBIN_KEY = '$2a$10$iEXXcU/Z8hH6HcYQn2Sqx.E4Xl4ricrpAS6Qs82TTOscR..xCB2mG';
-const JBIN_BASE = 'https://api.jsonbin.io/v3/b';
-let BIN_ID_RESTS = null;
-let BIN_ID_VISITS = null;
-const META_BIN = '6750000000000000'; // 아래서 실제 생성
+// ── Supabase 실시간 공유 ───────────────────────────────
+const SB_URL = 'https://gwdviwrijojucwrzaayb.supabase.co';
+const SB_KEY = 'sb_publishable_Z4NldLNd8ZBiXrJmjzVhSg__Ue0Zt-l';
+const SB_HDR = {'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
 
-// bin ID를 로컬에 캐시
-function getBinIds(){
-  try{
-    const s=localStorage.getItem('ojummo-bins');
-    if(s){ const p=JSON.parse(s); BIN_ID_RESTS=p.rests; BIN_ID_VISITS=p.visits; }
-  }catch(e){}
-}
-function saveBinIds(){
-  try{ localStorage.setItem('ojummo-bins',JSON.stringify({rests:BIN_ID_RESTS,visits:BIN_ID_VISITS})); }catch(e){}
-}
-
-async function jbinGet(binId){
-  const r=await fetch(`${JBIN_BASE}/${binId}/latest`,{headers:{'X-Master-Key':JBIN_KEY,'X-Bin-Meta':false}});
+async function sbGet(){
+  const r=await fetch(`${SB_URL}/rest/v1/data?select=id,data&order=id.asc&limit=1`,{headers:SB_HDR});
   if(!r.ok) throw new Error(r.status);
-  return await r.json();
+  const rows=await r.json();
+  if(!rows.length) return {userRests:[],hiddenRests:[]};
+  return JSON.parse(rows[0].data);
 }
-async function jbinSet(binId, data){
-  const r=await fetch(`${JBIN_BASE}/${binId}`,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':JBIN_KEY},body:JSON.stringify(data)});
+async function sbSet(payload){
+  // upsert: id=1 행을 항상 업데이트
+  const r=await fetch(`${SB_URL}/rest/v1/data`,{
+    method:'POST',
+    headers:{...SB_HDR,'Prefer':'resolution=merge-duplicates'},
+    body:JSON.stringify({id:1, data:JSON.stringify(payload)})
+  });
   if(!r.ok) throw new Error(r.status);
-  return await r.json();
-}
-async function jbinCreate(name, data){
-  const r=await fetch(JBIN_BASE,{method:'POST',headers:{'Content-Type':'application/json','X-Master-Key':JBIN_KEY,'X-Bin-Name':name,'X-Bin-Private':false},body:JSON.stringify(data)});
-  if(!r.ok) throw new Error(r.status);
-  const j=await r.json();
-  return j.metadata.id;
 }
 
-// 초기 로드: bin 없으면 새로 생성
 async function loadData(){
-  getBinIds();
-  showSyncStatus('불러오는 중...');
-  try{
-    if(!BIN_ID_RESTS){
-      BIN_ID_RESTS = await jbinCreate('ojummo-rests', {userRests:[], hiddenRests:[]});
-      saveBinIds();
+  // 1. 캐시에서 즉시 로드
+  try{const u=localStorage.getItem('oj-ur');userRests=u?JSON.parse(u):[];}catch(e){userRests=[];}
+  try{const h=localStorage.getItem('oj-hr');hiddenRests=h?JSON.parse(h):[];}catch(e){hiddenRests=[];}
+  try{const v=localStorage.getItem('oj-v-'+activeM);visits=v?JSON.parse(v):{};}catch(e){visits={};}
+
+  // 2. 백그라운드에서 Supabase 최신 데이터
+  setTimeout(async()=>{
+    try{
+      showSyncStatus('최신 데이터 확인 중...');
+      const rd=await sbGet();
+      const newRests=rd.userRests||[];
+      const newHidden=rd.hiddenRests||[];
+      if(JSON.stringify(newRests)!==JSON.stringify(userRests)||JSON.stringify(newHidden)!==JSON.stringify(hiddenRests)){
+        userRests=newRests; hiddenRests=newHidden;
+        localStorage.setItem('oj-ur',JSON.stringify(userRests));
+        localStorage.setItem('oj-hr',JSON.stringify(hiddenRests));
+        newHidden.forEach(id=>{if(leafletMarkers[id]){leafletMarkers[id].remove();delete leafletMarkers[id];}});
+        userRests.forEach(r=>{if(!leafletMarkers[r.id])addMarker(r);});
+        allR().forEach(r=>updateMarker(r.id));
+        renderStats(); renderList();
+      }
+      hideSyncStatus();
+    }catch(e){
+      hideSyncStatus();
+      console.error('백그라운드 업데이트 실패',e);
     }
-    if(!BIN_ID_VISITS){
-      BIN_ID_VISITS = await jbinCreate('ojummo-visits', {visits:{}});
-      saveBinIds();
-    }
-    const [rd, vd] = await Promise.all([jbinGet(BIN_ID_RESTS), jbinGet(BIN_ID_VISITS)]);
-    userRests = rd.userRests||[];
-    hiddenRests = rd.hiddenRests||[];
-    visits = vd.visits||{};
-    hideSyncStatus();
-  }catch(e){
-    console.error('loadData error',e);
-    hideSyncStatus();
-    try{const u=localStorage.getItem('oj-ur');userRests=u?JSON.parse(u):[];}catch(e){userRests=[];}
-    try{const h=localStorage.getItem('oj-hr');hiddenRests=h?JSON.parse(h):[];}catch(e){hiddenRests=[];}
-    try{const v=localStorage.getItem('oj-v');visits=v?JSON.parse(v):{};}catch(e){visits={};}
-  }
+  },100);
 }
 
 async function saveU(){
   try{
     localStorage.setItem('oj-ur',JSON.stringify(userRests));
     localStorage.setItem('oj-hr',JSON.stringify(hiddenRests));
-    if(BIN_ID_RESTS) await jbinSet(BIN_ID_RESTS,{userRests, hiddenRests});
+    await sbSet({userRests,hiddenRests});
   }catch(e){console.error('saveU',e);}
 }
 async function saveV(){
-  try{
-    localStorage.setItem('oj-v',JSON.stringify(visits));
-    if(BIN_ID_VISITS) await jbinSet(BIN_ID_VISITS,{visits});
-  }catch(e){console.error('saveV',e);}
+  try{ localStorage.setItem('oj-v-'+activeM, JSON.stringify(visits)); }catch(e){}
 }
 
 // 30초마다 자동 새로고침
 setInterval(async()=>{
   try{
-    if(!BIN_ID_RESTS||!BIN_ID_VISITS) return;
-    const [rd,vd]=await Promise.all([jbinGet(BIN_ID_RESTS),jbinGet(BIN_ID_VISITS)]);
+    const rd=await sbGet();
     const newRests=rd.userRests||[];
     const newHidden=rd.hiddenRests||[];
-    const newVisits=vd.visits||{};
-    if(JSON.stringify(newRests)!==JSON.stringify(userRests)||JSON.stringify(newVisits)!==JSON.stringify(visits)||JSON.stringify(newHidden)!==JSON.stringify(hiddenRests)){
-      userRests=newRests; hiddenRests=newHidden; visits=newVisits;
-      // 숨겨진 마커 제거
-      hiddenRests.forEach(id=>{if(leafletMarkers[id]){leafletMarkers[id].remove();delete leafletMarkers[id];}});
-      // 새로 추가된 마커 지도에 반영
+    if(JSON.stringify(newRests)!==JSON.stringify(userRests)||JSON.stringify(newHidden)!==JSON.stringify(hiddenRests)){
+      userRests=newRests; hiddenRests=newHidden;
+      localStorage.setItem('oj-ur',JSON.stringify(userRests));
+      localStorage.setItem('oj-hr',JSON.stringify(hiddenRests));
+      newHidden.forEach(id=>{if(leafletMarkers[id]){leafletMarkers[id].remove();delete leafletMarkers[id];}});
+      userRests.forEach(r=>{if(!leafletMarkers[r.id])addMarker(r);});
+      allR().forEach(r=>updateMarker(r.id));
+      renderStats(); renderList();
+    }
+  }catch(e){}
+},30000);
+const WEATHER_ICONS={
+  '맑음':'☀️','구름조금':'🌤️','구름많음':'⛅','흐림':'☁️',
+  '비':'🌧️','눈':'❄️','소나기':'⛈️','안개':'🌫️'
+};
+
+function getWeatherRecs(temp, desc){
+  const today = new Date();
+  const month = today.getMonth()+1;
+  const day   = today.getDate();
+
+  // ── 특별일 체크 ──────────────────────────────────────
+  // 복날 (초복: 7월 셋째 경일, 중복: 네째 경일, 말복: 8월 첫째 경일 근사)
+  const isBoknal = (month===7&&day>=11&&day<=30)||(month===8&&day<=15);
+  // 기력회복의 날: 매월 마지막 주 금요일
+  const lastDay = new Date(today.getFullYear(),month,0).getDate();
+  const lastFri = lastDay - ((new Date(today.getFullYear(),month-1,lastDay).getDay()+1)%7);
+  const isPowerDay = day===lastFri;
+
+  if(isBoknal) return {
+    reason:'복날엔 삼계탕으로 보양!', icon:'🐔',
+    rests:['지호한방삼계탕','안골식당','춘천황가닭갈비','진지왕순대국','백년불고기']
+  };
+  if(isPowerDay) return {
+    reason:'이번달 기력 회복! 고기 먹는 날 💪', icon:'🥩',
+    rests:['장수촌','안동황우촌','서현실비 야탑점','백년불고기','오봉집','뿅의전설 야탑본점']
+  };
+
+  // ── 날씨 기반 ─────────────────────────────────────────
+  if(temp>=30) return {
+    reason:'폭염! 시원한 거 먹어야 살아요 🥵', icon:'🥵',
+    rests:['수타우동겐','인더비엣','강릉심곡포구','미카도스시','본죽','이소정카츠']
+  };
+  if(temp>=25) return {
+    reason:'더운 날엔 가볍게!', icon:'😓',
+    rests:['인더비엣','수타우동겐','영심이분식','강릉심곡포구','본죽','도글리']
+  };
+  if(temp>=18) return {
+    reason:'딱 좋은 날씨! 뭐든 맛있어요 😊', icon:'😊',
+    rests:['이소정카츠','송쉐프 야탑점','안골식당','두툼해','도글리','긴자료코','인더비엣','강릉심곡포구']
+  };
+  if(temp>=10) return {
+    reason:'쌀쌀하네요. 따뜻한 국물 어때요?', icon:'🍲',
+    rests:['신사골감자탕','진지왕순대국','지호한방삼계탕','등촌칼국수','두리부대찌개','이태리부대찌개','송이찌개마을']
+  };
+  if(temp>=0) return {
+    reason:'추운 날엔 뜨끈한 국밥!', icon:'🥣',
+    rests:['역전국밥','신사골감자탕','진지왕순대국','통돼지김치찌개','송이찌개마을','안골식당','초록지붕전주명가']
+  };
+  return {
+    reason:'한파! 뜨끈한 국물로 몸 녹여요 🔥', icon:'🥶',
+    rests:['역전국밥','신사골감자탕','등촌칼국수','두리부대찌개','이태리부대찌개','통돼지김치찌개']
+  };
+}
+
+// 비/눈 날씨 오버라이드
+function getWeatherDesc(code, temp){
+  if(code>=80&&code<=99) return {
+    reason:'비 오는 날엔 역시 파전에 막걸리... 대신 칼국수!', icon:'🌧️',
+    rests:['등촌칼국수','두리부대찌개','이태리부대찌개','신사골감자탕','송이찌개마을','통돼지김치찌개']
+  };
+  if(code>=70&&code<=79) return {
+    reason:'눈 오는 날엔 따끈한 국물!', icon:'❄️',
+    rests:['역전국밥','신사골감자탕','진지왕순대국','등촌칼국수','송이찌개마을']
+  };
+  return null;
+}
+
+// 날짜 기반 시드로 매일 다른 3개 추출 (겹치지 않게)
+function getDailyPick(arr, count){
+  const today=new Date();
+  const seed=today.getFullYear()*10000+(today.getMonth()+1)*100+today.getDate();
+  const shuffled=[...arr];
+  for(let i=shuffled.length-1;i>0;i--){
+    const j=Math.abs((seed*(i+3)+17)%shuffled.length);
+    [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];
+  }
+  return shuffled.slice(0,count);
+}
+
+async function loadWeather(){
+  try{
+    const url='https://api.open-meteo.com/v1/forecast?latitude=37.411&longitude=127.129&current=temperature_2m,weathercode&timezone=Asia/Seoul';
+    const resp=await fetch(url);
+    const data=await resp.json();
+    const temp=Math.round(data.current.temperature_2m);
+    const code=data.current.weathercode;
+
+    let wdesc='맑음', wicon='☀️';
+    if(code===0){wdesc='맑음';wicon='☀️';}
+    else if(code<=2){wdesc='구름조금';wicon='🌤️';}
+    else if(code<=3){wdesc='흐림';wicon='☁️';}
+    else if(code<=49){wdesc='안개';wicon='🌫️';}
+    else if(code<=69){wdesc='비';wicon='🌧️';}
+    else if(code<=79){wdesc='눈';wicon='❄️';}
+    else if(code<=99){wdesc='소나기';wicon='⛈️';}
+
+    // 비/눈 오버라이드 체크
+    const override=getWeatherDesc(code,temp);
+    const rec=override||getWeatherRecs(temp,wdesc);
+
+    // 오늘의 3개 추출
+    const todayPicks=getDailyPick(rec.rests,3);
+
+    // 배너
+    document.getElementById('wbIcon').textContent=wicon;
+    document.getElementById('wbTemp').textContent=`${temp}°C ${wdesc}`;
+    document.getElementById('wbDesc').textContent='야탑 현재 날씨 · 오늘의 추천 메뉴 보기 👆';
+
+    // 팝업
+    document.getElementById('wpEmoji').textContent=rec.icon||wicon;
+    document.getElementById('wpDesc').textContent=wdesc;
+    document.getElementById('wpTemp').textContent=`${temp}°C`;
+    document.getElementById('wpReason').textContent=rec.reason;
+
+    const list=document.getElementById('wpRecList');
+    list.innerHTML=`<div style="font-size:11px;color:#aaa;margin-bottom:8px">오늘의 추천 3곳 (매일 바뀌어요 🎲)</div>`;
+
+    todayPicks.forEach((nm,idx)=>{
+      const r=allR().find(x=>x.name===nm);
+      if(!r) return;
+      const medals=['🥇','🥈','🥉'];
+      const div=document.createElement('div');
+      div.className='wp-rec-item';
+      div.innerHTML=`
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:20px">${medals[idx]||'🍽️'}</span>
+          <div>
+            <div class="wp-rec-nm">${r.name}</div>
+            <div class="wp-rec-why">${r.type}${r.rating?` · ⭐${r.rating}`:''}</div>
+          </div>
+        </div>
+      `;
+      div.onclick=()=>{
+        document.getElementById('weatherPopup').classList.remove('show');
+        if(gmap) gmap.setView([r.lat,r.lng],18,{animate:true});
+        setTimeout(()=>leafletMarkers[r.id]?.openPopup(),500);
+      };
+      list.appendChild(div);
+    });
+
+  }catch(e){
+    document.getElementById('wbTemp').textContent='날씨 정보 없음';
+    document.getElementById('wbIcon').textContent='🌡️';
+  }
+}
+
+// 30초마다 식당 목록만 자동 새로고침
+setInterval(async()=>{
+  try{
+    if(!BIN_ID_RESTS) return;
+    const rd=await jbinGet(BIN_ID_RESTS);
+    const newRests=rd.userRests||[];
+    const newHidden=rd.hiddenRests||[];
+    if(JSON.stringify(newRests)!==JSON.stringify(userRests)||JSON.stringify(newHidden)!==JSON.stringify(hiddenRests)){
+      userRests=newRests; hiddenRests=newHidden;
+      newHidden.forEach(id=>{if(leafletMarkers[id]){leafletMarkers[id].remove();delete leafletMarkers[id];}});
       userRests.forEach(r=>{ if(!leafletMarkers[r.id]) addMarker(r); });
       allR().forEach(r=>updateMarker(r.id));
       renderStats(); renderList();
@@ -509,6 +712,7 @@ function renderTabs(){
     if(i===activeM)b.style.background=colors[i];
     b.onclick=()=>{
       activeM=i;
+      try{const v=localStorage.getItem('oj-v-'+i);visits=v?JSON.parse(v):{};}catch(e){visits={};}
       renderTabs(); renderStats(); renderList();
       allR().forEach(r=>updateMarker(r.id));
       setTimeout(()=>{const on=document.querySelector('.mtab.on');if(on)on.scrollIntoView({inline:'center',behavior:'smooth'});},30);
@@ -696,6 +900,7 @@ document.getElementById('addBtn').addEventListener('click', async()=>{
   renderStats();
   renderList();
   initMap();
+  loadWeather(); // 날씨 로드
   setTimeout(()=>{
     const on=document.querySelector('.mtab.on');
     if(on)on.scrollIntoView({inline:'center',behavior:'smooth'});
