@@ -234,19 +234,119 @@ const RESTS=[
   {id:'r33',name:'뿅의전설 야탑본점',type:'치킨·맥주',cat:'other',rating:4.3,hours:'17:00~02:00',lat:37.4121,lng:127.1316},
 ];
 
-let visits={}, userRests=[], leafletMarkers={};
+let visits={}, userRests=[], hiddenRests=[], leafletMarkers={};
 let pendingLat=null, pendingLng=null;
 let gmap=null;
 
-function sk(m){return`oj6-v-${m}`}
-function urk(){return'oj6-ur'}
-function loadData(){
-  try{const v=localStorage.getItem(sk(activeM));visits=v?JSON.parse(v):{};}catch(e){visits={};}
-  try{const u=localStorage.getItem(urk());userRests=u?JSON.parse(u):[];}catch(e){userRests=[];}
+// ── JSONBin 실시간 공유 ────────────────────────────────
+const JBIN_KEY = '$2a$10$iEXXcU/Z8hH6HcYQn2Sqx.E4Xl4ricrpAS6Qs82TTOscR..xCB2mG';
+const JBIN_BASE = 'https://api.jsonbin.io/v3/b';
+let BIN_ID_RESTS = null;
+let BIN_ID_VISITS = null;
+const META_BIN = '6750000000000000'; // 아래서 실제 생성
+
+// bin ID를 로컬에 캐시
+function getBinIds(){
+  try{
+    const s=localStorage.getItem('ojummo-bins');
+    if(s){ const p=JSON.parse(s); BIN_ID_RESTS=p.rests; BIN_ID_VISITS=p.visits; }
+  }catch(e){}
 }
-function saveV(){try{localStorage.setItem(sk(activeM),JSON.stringify(visits));}catch(e){}}
-function saveU(){try{localStorage.setItem(urk(),JSON.stringify(userRests));}catch(e){}}
-function allR(){return[...RESTS,...userRests];}
+function saveBinIds(){
+  try{ localStorage.setItem('ojummo-bins',JSON.stringify({rests:BIN_ID_RESTS,visits:BIN_ID_VISITS})); }catch(e){}
+}
+
+async function jbinGet(binId){
+  const r=await fetch(`${JBIN_BASE}/${binId}/latest`,{headers:{'X-Master-Key':JBIN_KEY,'X-Bin-Meta':false}});
+  if(!r.ok) throw new Error(r.status);
+  return await r.json();
+}
+async function jbinSet(binId, data){
+  const r=await fetch(`${JBIN_BASE}/${binId}`,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':JBIN_KEY},body:JSON.stringify(data)});
+  if(!r.ok) throw new Error(r.status);
+  return await r.json();
+}
+async function jbinCreate(name, data){
+  const r=await fetch(JBIN_BASE,{method:'POST',headers:{'Content-Type':'application/json','X-Master-Key':JBIN_KEY,'X-Bin-Name':name,'X-Bin-Private':false},body:JSON.stringify(data)});
+  if(!r.ok) throw new Error(r.status);
+  const j=await r.json();
+  return j.metadata.id;
+}
+
+// 초기 로드: bin 없으면 새로 생성
+async function loadData(){
+  getBinIds();
+  showSyncStatus('불러오는 중...');
+  try{
+    if(!BIN_ID_RESTS){
+      BIN_ID_RESTS = await jbinCreate('ojummo-rests', {userRests:[], hiddenRests:[]});
+      saveBinIds();
+    }
+    if(!BIN_ID_VISITS){
+      BIN_ID_VISITS = await jbinCreate('ojummo-visits', {visits:{}});
+      saveBinIds();
+    }
+    const [rd, vd] = await Promise.all([jbinGet(BIN_ID_RESTS), jbinGet(BIN_ID_VISITS)]);
+    userRests = rd.userRests||[];
+    hiddenRests = rd.hiddenRests||[];
+    visits = vd.visits||{};
+    hideSyncStatus();
+  }catch(e){
+    console.error('loadData error',e);
+    hideSyncStatus();
+    try{const u=localStorage.getItem('oj-ur');userRests=u?JSON.parse(u):[];}catch(e){userRests=[];}
+    try{const h=localStorage.getItem('oj-hr');hiddenRests=h?JSON.parse(h):[];}catch(e){hiddenRests=[];}
+    try{const v=localStorage.getItem('oj-v');visits=v?JSON.parse(v):{};}catch(e){visits={};}
+  }
+}
+
+async function saveU(){
+  try{
+    localStorage.setItem('oj-ur',JSON.stringify(userRests));
+    localStorage.setItem('oj-hr',JSON.stringify(hiddenRests));
+    if(BIN_ID_RESTS) await jbinSet(BIN_ID_RESTS,{userRests, hiddenRests});
+  }catch(e){console.error('saveU',e);}
+}
+async function saveV(){
+  try{
+    localStorage.setItem('oj-v',JSON.stringify(visits));
+    if(BIN_ID_VISITS) await jbinSet(BIN_ID_VISITS,{visits});
+  }catch(e){console.error('saveV',e);}
+}
+
+// 30초마다 자동 새로고침
+setInterval(async()=>{
+  try{
+    if(!BIN_ID_RESTS||!BIN_ID_VISITS) return;
+    const [rd,vd]=await Promise.all([jbinGet(BIN_ID_RESTS),jbinGet(BIN_ID_VISITS)]);
+    const newRests=rd.userRests||[];
+    const newHidden=rd.hiddenRests||[];
+    const newVisits=vd.visits||{};
+    if(JSON.stringify(newRests)!==JSON.stringify(userRests)||JSON.stringify(newVisits)!==JSON.stringify(visits)||JSON.stringify(newHidden)!==JSON.stringify(hiddenRests)){
+      userRests=newRests; hiddenRests=newHidden; visits=newVisits;
+      // 숨겨진 마커 제거
+      hiddenRests.forEach(id=>{if(leafletMarkers[id]){leafletMarkers[id].remove();delete leafletMarkers[id];}});
+      // 새로 추가된 마커 지도에 반영
+      userRests.forEach(r=>{ if(!leafletMarkers[r.id]) addMarker(r); });
+      allR().forEach(r=>updateMarker(r.id));
+      renderStats(); renderList();
+    }
+  }catch(e){}
+},30000);
+
+function showSyncStatus(msg){
+  let el=document.getElementById('syncStatus');
+  if(!el){el=document.createElement('div');el.id='syncStatus';el.style.cssText='position:fixed;bottom:16px;right:16px;background:#fbf2c0;color:#7a5c10;font-size:11px;padding:6px 12px;border-radius:20px;border:1px solid #e8d98a;z-index:9999;font-family:inherit;box-shadow:0 2px 8px rgba(0,0,0,.1)';document.body.appendChild(el);}
+  el.textContent='🔄 '+msg; el.style.display='block';
+}
+function hideSyncStatus(){
+  const el=document.getElementById('syncStatus'); if(el) el.style.display='none';
+}
+
+function allR(){
+  const base = RESTS.filter(r=>!hiddenRests.includes(r.id));
+  return [...base, ...userRests];
+}
 
 // ── 별점 ──────────────────────────────────────────────
 function starsHtml(r){
@@ -371,16 +471,29 @@ window.toggleFromPopup=function(id){
 };
 
 // ── 방문 토글 ──────────────────────────────────────────
-function toggle(id){
+async function toggle(id){
   const today=new Date().toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'});
   if(visits[id])delete visits[id]; else visits[id]=today;
-  saveV(); updateMarker(id); renderStats(); renderList();
+  showSyncStatus('저장 중...');
+  await saveV();
+  hideSyncStatus();
+  updateMarker(id); renderStats(); renderList();
 }
 
-function delRest(id){
-  if(!confirm('이 식당을 삭제할까요?'))return;
-  userRests=userRests.filter(r=>r.id!==id); delete visits[id];
-  saveU(); saveV();
+async function delRest(id){
+  if(!confirm('이 식당을 삭제할까요?\n모든 사람에게서 삭제됩니다.'))return;
+  const isDefault = RESTS.find(r=>r.id===id);
+  if(isDefault){
+    // 기본 식당은 hiddenRests에 추가
+    if(!hiddenRests.includes(id)) hiddenRests.push(id);
+  } else {
+    // 직접 추가한 식당은 목록에서 제거
+    userRests = userRests.filter(r=>r.id!==id);
+  }
+  delete visits[id];
+  showSyncStatus('삭제 중...');
+  await Promise.all([saveU(), saveV()]);
+  hideSyncStatus();
   if(leafletMarkers[id]){leafletMarkers[id].remove();delete leafletMarkers[id];}
   renderStats(); renderList();
 }
@@ -396,7 +509,6 @@ function renderTabs(){
     if(i===activeM)b.style.background=colors[i];
     b.onclick=()=>{
       activeM=i;
-      try{const v=localStorage.getItem(sk(i));visits=v?JSON.parse(v):{};}catch(e){visits={};}
       renderTabs(); renderStats(); renderList();
       allR().forEach(r=>updateMarker(r.id));
       setTimeout(()=>{const on=document.querySelector('.mtab.on');if(on)on.scrollIntoView({inline:'center',behavior:'smooth'});},30);
@@ -425,7 +537,7 @@ function renderList(){
     card.className='rc'+(vis?' vis':'');
     if(vis){card.style.borderColor=vcol;card.style.background=vfill;}
     card.innerHTML=`
-      ${isU?`<button class="del" data-id="${r.id}" title="삭제">✕</button>`:''}
+      <button class="del" data-id="${r.id}" title="삭제">✕</button>
       <div class="rc-top">
         <div class="rc-nm" style="color:${vis?vcol:'var(--text)'}">${r.name}${isU?'<span class="utag">+</span>':''}</div>
         <div class="rc-badge" style="background:${vis?vfill:'transparent'};color:${vis?vcol:col};border-color:${vis?vcol:col}">${CAT_LABEL[r.cat]||'기타'}</div>
@@ -550,7 +662,7 @@ function showStatus(msg,ok){
   el.style.display='block'; setTimeout(()=>el.style.display='none',3500);
 }
 
-document.getElementById('addBtn').addEventListener('click',()=>{
+document.getElementById('addBtn').addEventListener('click', async()=>{
   const name=document.getElementById('mName').value.trim();
   if(!name){showStatus('식당 이름을 입력해주세요.',false);return;}
   const type=document.getElementById('mType').value.trim()||'';
@@ -559,12 +671,14 @@ document.getElementById('addBtn').addEventListener('click',()=>{
   const lng=pendingLng||BYC.lng+(Math.random()-.5)*.007;
 
   const r={id:'u'+Date.now(),name,type,cat,rating:null,hours:'미확인',lat,lng};
-  userRests.push(r); saveU();
+  userRests.push(r);
+  showSyncStatus('저장 중...');
+  await saveU();
+  hideSyncStatus();
   addMarker(r);
   renderStats(); renderList();
-  showStatus(`"${name}" 지도에 추가됐어요!`,true);
+  showStatus(`"${name}" 지도에 추가됐어요! 모두에게 공유됩니다 🎉`,true);
 
-  // 지도에서 확인할 수 있게 이동
   if(gmap){gmap.setView([lat,lng],18,{animate:true});setTimeout(()=>leafletMarkers[r.id]?.openPopup(),500);}
 
   document.getElementById('mName').value='';
@@ -576,16 +690,17 @@ document.getElementById('addBtn').addEventListener('click',()=>{
 });
 
 // ── 초기화 ─────────────────────────────────────────────
-loadData();
-renderTabs();
-renderStats();
-renderList();
-initMap();
-
-setTimeout(()=>{
-  const on=document.querySelector('.mtab.on');
-  if(on)on.scrollIntoView({inline:'center',behavior:'smooth'});
-},100);
+(async()=>{
+  await loadData();
+  renderTabs();
+  renderStats();
+  renderList();
+  initMap();
+  setTimeout(()=>{
+    const on=document.querySelector('.mtab.on');
+    if(on)on.scrollIntoView({inline:'center',behavior:'smooth'});
+  },100);
+})();
 </script>
 </body>
 </html>
