@@ -3,31 +3,33 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>아라 작업대 · ara-workbench</title>
+<title>ara-work-helper · ara-workbench</title>
 <style>
   :root{
     --bg:#f4f6f8; --card:#ffffff; --ink:#1f2933; --sub:#616e7c;
-    --line:#e1e6ea; --brand:#1f6b3b; --brand-weak:#e7f2ec;
+    --line:#e1e6ea; --brand:#1f6b3b; --brand-weak:#e7f2ec; --logo-bg:#f6d860;
     --shadow:0 1px 3px rgba(16,24,40,.06),0 1px 2px rgba(16,24,40,.04);
     --shadow-hover:0 12px 24px rgba(16,24,40,.10),0 4px 8px rgba(16,24,40,.06);
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);
+  body{margin:0;background:linear-gradient(135deg,#fff9e8 0%,#fdf1de 45%,#fbe9d7 100%);color:var(--ink);
     font-family:"맑은 고딕","Malgun Gothic",-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;
     line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
-  .wrap{max-width:820px;margin:0 auto;padding:56px 20px 80px}
+  .wrap{max-width:820px;margin:0 auto;padding:32px 20px 80px}
   header.top{display:flex;align-items:center;gap:14px;margin-bottom:8px}
-  header.top .logo{width:46px;height:46px;border-radius:11px;background:var(--brand);
+  header.top .logo{width:46px;height:46px;border-radius:11px;background:var(--logo-bg);
     display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px}
   h1{font-size:24px;margin:0;font-weight:800;letter-spacing:-.3px}
   .sub{color:var(--sub);font-size:14px;margin:4px 0 34px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
   a.tool{display:block;text-decoration:none;color:inherit;background:var(--card);
     border:1px solid var(--line);border-radius:14px;padding:22px;box-shadow:var(--shadow);
     transition:transform .14s, box-shadow .14s, border-color .14s}
   a.tool:hover{transform:translateY(-3px);box-shadow:var(--shadow-hover);border-color:#cfe3d6}
   .tool .ico{width:52px;height:52px;border-radius:12px;background:var(--brand-weak);
     display:flex;align-items:center;justify-content:center;font-size:27px;margin-bottom:14px}
+  .tool .ico.lunch{background:#e2453c}
+  .tool .ico.expense{background:#f28c28}
   .tool .name{font-size:17px;font-weight:700;margin:0 0 4px}
   .tool .desc{font-size:13px;color:var(--sub);margin:0;line-height:1.55}
   .tool .go{margin-top:14px;font-size:13px;font-weight:600;color:var(--brand);display:inline-flex;align-items:center;gap:4px}
@@ -37,24 +39,24 @@
 <body>
   <div class="wrap">
     <header class="top">
-      <div class="logo">🧰</div>
+      <div class="logo">🤖</div>
       <div>
-        <h1>아라 작업대</h1>
+        <h1>ara-work-helper</h1>
       </div>
     </header>
-    <p class="sub">자주 쓰는 업무 도구 모음 · ara-workbench</p>
+    <p class="sub">여기는 내 공간, 불만 있는 사람? 나가는 문은 오른쪽입니다.</p>
 
     <div class="grid">
 
       <a class="tool" href="점심/">
-        <div class="ico">🍚</div>
+        <div class="ico lunch">🍴</div>
         <p class="name">오점뭐</p>
         <p class="desc">오늘 점심 뭐 먹지? 메뉴 골라주기</p>
         <span class="go">열기 →</span>
       </a>
 
       <a class="tool" href="접대비/">
-        <div class="ico">🧾</div>
+        <div class="ico expense">🧾</div>
         <p class="name">접대비 전표</p>
         <p class="desc">부고장·청첩장 사진 → 위하고 업로드용 엑셀 자동 생성</p>
         <span class="go">열기 →</span>
