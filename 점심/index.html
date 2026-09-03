@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>오점뭐? — DH 점심 맛집</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<style>
+:root{
+  --green:#c8a84b;--green-d:#7a5c10;--green-l:#fbf2c0;
+  --orange:#EF9F27;--blue:#378ADD;--red:#E24B4A;
+  --purple:#7F77DD;--pink:#D4537E;
+  --bg:#fffdf0;--card:#fff;--border:rgba(0,0,0,0.09);
+  --text:#1a1a1a;--text2:#666;--text3:#aaa;
+  --r:12px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;font-family:'Noto Sans KR',sans-serif;background:var(--bg);color:var(--text);cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E🍴%3C/text%3E%3C/svg%3E") 8 4, auto}
+body{display:flex;flex-direction:column}
+
+/* 날씨 배너 */
+.weather-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;background:linear-gradient(135deg,#fff9e6,#fff3cc);border-bottom:1px solid #e8d98a;flex-shrink:0;cursor:pointer}
+.weather-bar:hover{background:linear-gradient(135deg,#fff3cc,#ffe999)}
+.wb-left{display:flex;align-items:center;gap:8px}
+.wb-icon{font-size:22px;line-height:1}
+.wb-info{font-size:12px;color:#5c4200}
+.wb-temp{font-size:16px;font-weight:700;color:#7a5c10}
+.wb-desc{font-size:11px;color:#9b7a30;margin-top:1px}
+.wb-right{font-size:11px;color:#c8a84b;font-weight:500}
+/* 날씨 추천 팝업 */
+.weather-popup{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.4);z-index:9999;align-items:center;justify-content:center}
+.weather-popup.show{display:flex}
+.wp-box{background:#fff;border-radius:16px;padding:20px;max-width:340px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.wp-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.wp-title{font-size:16px;font-weight:700;color:#5c4200}
+.wp-close{background:none;border:none;font-size:20px;cursor:pointer;color:#aaa;line-height:1}
+.wp-weather{text-align:center;padding:12px;background:#fff9e6;border-radius:10px;margin-bottom:14px}
+.wp-emoji{font-size:40px;margin-bottom:6px}
+.wp-wdesc{font-size:13px;color:#7a5c10;font-weight:500}
+.wp-wtemp{font-size:24px;font-weight:700;color:#5c4200;margin-top:2px}
+.wp-reason{font-size:11px;color:#aaa;margin-top:4px}
+.wp-rec-title{font-size:13px;font-weight:700;color:#5c4200;margin-bottom:8px}
+.wp-rec-list{display:flex;flex-direction:column;gap:6px}
+.wp-rec-item{padding:10px 12px;background:#fffdf0;border:1px solid #e8d98a;border-radius:8px;cursor:pointer;transition:all .15s}
+.wp-rec-item:hover{background:#fbf2c0;border-color:#c8a84b}
+.wp-rec-nm{font-size:13px;font-weight:500;color:#1a1a1a}
+.wp-rec-why{font-size:11px;color:#9b7a30;margin-top:2px}
+
+.hd{background:#fbf2c0;color:#5c4200;padding:13px 16px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;border-bottom:1.5px solid #e8d98a}
+.hd-l .hd-t{font-size:21px;font-weight:700;letter-spacing:-.5px}
+.hd-l .hd-s{font-size:11px;opacity:.8;margin-top:1px}
+
+.months{display:flex;gap:5px;overflow-x:auto;padding:9px 16px;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0;scrollbar-width:none}
+.months::-webkit-scrollbar{display:none}
+.mtab{flex-shrink:0;padding:5px 13px;font-size:12px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;transition:all .15s}
+.mtab.on{background:#c8a84b;border-color:#c8a84b;color:#fff;font-weight:500}
+
+.stats{display:grid;grid-template-columns:repeat(3,1fr);background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0}
+.stat{padding:9px;text-align:center}
+.stat-n{font-size:20px;font-weight:700;color:var(--green)}
+.stat-l{font-size:10px;color:var(--text3)}
+
+/* MAP */
+#map{flex:1;min-height:420px}
+
+/* 커스텀 핀 */
+.pin-wrap{display:flex;flex-direction:column;align-items:center}
+.pin-circle{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2.5px solid #fff;font-size:13px;font-weight:700;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.pin-circle.vis{opacity:1;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+.pin-spike{width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid currentColor}
+.pin-dh{background:#3C3489!important;border-color:#FAE89A!important;font-size:10px!important;width:36px!important;height:36px!important}
+
+/* 팝업 */
+.leaflet-popup-content-wrapper{border-radius:10px!important;padding:0!important;box-shadow:0 3px 12px rgba(0,0,0,.15)!important}
+.leaflet-popup-content{margin:0!important;width:auto!important}
+.popup-inner{padding:12px 14px;min-width:150px;max-width:210px;font-family:'Noto Sans KR',sans-serif}
+.pop-name{font-size:14px;font-weight:700;color:var(--text);margin-bottom:3px}
+.pop-type{font-size:11px;color:var(--text2);margin-bottom:4px}
+.pop-stars{font-size:12px;margin-bottom:4px}
+.pop-hours{font-size:10px;color:var(--text3);margin-bottom:8px}
+.pop-btn{width:100%;padding:7px;border:none;border-radius:7px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .15s}
+.pop-btn.check{background:var(--green-l);color:var(--green-d)}
+.pop-btn.check:hover{background:#faefc8}
+.pop-btn.uncheck{background:#fee;color:var(--red)}
+.pop-btn.uncheck:hover{background:#fdd}
+.pop-visit-date{font-size:10px;color:var(--green-d);font-weight:500;margin-bottom:6px}
+
+/* LEGEND */
+.legend{display:flex;flex-wrap:wrap;gap:7px;padding:7px 16px;background:var(--card);border-bottom:1px solid var(--border);flex-shrink:0}
+.leg{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2)}
+.leg-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+
+/* ADD 섹션 */
+.add-wrap{background:var(--card);border-top:1px solid var(--border);flex-shrink:0}
+.add-head{padding:11px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;user-select:none}
+.add-head-t{font-size:13px;font-weight:700;color:var(--green-d)}
+.add-head-icon{font-size:18px;color:var(--green);font-weight:700;line-height:1}
+.add-body{display:none;padding:0 16px 14px;border-top:1px solid var(--border)}
+.add-body.open{display:block}
+
+/* 검색 */
+.s-row{display:flex;gap:8px;margin-top:12px;margin-bottom:6px}
+.s-inp{flex:1;padding:9px 12px;font-size:13px;border:1px solid var(--border);border-radius:8px;font-family:inherit;outline:none;background:var(--bg);color:var(--text);transition:border .15s}
+.s-inp:focus{border-color:var(--green);background:#fff}
+.s-btn{padding:9px 16px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;font-family:inherit;white-space:nowrap;transition:background .15s}
+.s-btn:hover{background:var(--green-d)}
+.s-btn:disabled{opacity:.5;cursor:not-allowed}
+.loading-t{font-size:11px;color:var(--text3);padding:3px 0;display:none}
+.sr-list{margin-bottom:4px}
+.sr-item{padding:9px 12px;border-radius:8px;border:1px solid var(--border);margin-bottom:5px;cursor:pointer;transition:all .15s}
+.sr-item:hover{border-color:var(--green);background:var(--green-l)}
+.sr-nm{font-size:13px;font-weight:500;color:var(--text)}
+.sr-mt{font-size:11px;color:var(--text2);margin-top:2px}
+.sel-hint{font-size:12px;color:var(--green-d);font-weight:500;padding:5px 0;display:none}
+
+.divider{display:flex;align-items:center;gap:8px;margin:10px 0 8px}
+.divider span{font-size:11px;color:var(--text3);white-space:nowrap}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+
+.simple-form{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:8px}
+.sf-inp{flex:1;min-width:110px;padding:9px 12px;font-size:13px;border:1px solid var(--border);border-radius:8px;font-family:inherit;outline:none;background:var(--bg);color:var(--text)}
+.sf-inp:focus{border-color:var(--green);background:#fff}
+.sf-sel{flex:1;min-width:100px;padding:9px 10px;font-size:12px;border:1px solid var(--border);border-radius:8px;font-family:inherit;outline:none;background:var(--bg);color:var(--text)}
+.btn-add{width:100%;padding:10px;background:var(--green);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit;transition:background .15s}
+.btn-add:hover{background:var(--green-d)}
+.status{font-size:12px;padding:7px 11px;border-radius:8px;margin-top:7px;display:none}
+.status.ok{background:#FEFAED;color:#A08030}
+.status.err{background:#FCEBEB;color:#A32D2D}
+.coord-hint{font-size:10px;color:var(--text3);margin-top:4px;text-align:center}
+
+/* LIST */
+.list-wrap{padding:12px 16px 80px;background:var(--bg)}
+.list-hd{font-size:13px;font-weight:500;color:var(--text2);margin-bottom:8px}
+.list{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.rc{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:11px 12px;cursor:pointer;transition:all .15s;position:relative}
+.rc:hover{border-color:#bbb}
+.rc.vis{border-width:1.5px}
+.rc-top{display:flex;align-items:flex-start;justify-content:space-between;gap:4px;margin-bottom:2px}
+.rc-nm{font-size:13px;font-weight:500;line-height:1.3}
+.rc-badge{font-size:9px;padding:2px 5px;border-radius:7px;white-space:nowrap;flex-shrink:0;font-weight:500;border:1px solid}
+.rc-type{font-size:11px;color:var(--text2);margin-bottom:3px}
+.rc-stars{font-size:11px;margin-bottom:2px}
+.rc-date{font-size:10px;font-weight:500;margin-top:3px}
+.rc-hrs{font-size:10px;color:var(--text3)}
+.utag{font-size:9px;background:#FFF3CD;color:#856404;border-radius:3px;padding:1px 4px;margin-left:3px;vertical-align:middle}
+.del{position:absolute;top:5px;right:5px;width:18px;height:18px;border-radius:50%;background:#fee;color:var(--red);font-size:10px;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .15s;font-weight:700;line-height:1}
+.rc:hover .del{opacity:1}
+</style>
+</head>
+<body>
+
+<div class="hd">
+  <div class="hd-l">
+    <div class="hd-t">🍴오점뭐?🍚</div>
+    <div class="hd-s">DH(BYC빌딩) 주변 점심 맛집 지도</div>
+  </div>
+</div>
+
+<div class="months" id="mtabs"></div>
+
+<!-- 날씨 배너 -->
+<div class="weather-bar" id="weatherBar" onclick="document.getElementById('weatherPopup').classList.add('show')">
+  <div class="wb-left">
+    <div class="wb-icon" id="wbIcon">⏳</div>
+    <div class="wb-info">
+      <div class="wb-temp" id="wbTemp">날씨 불러오는 중...</div>
+      <div class="wb-desc" id="wbDesc"></div>
+    </div>
+  </div>
+  <div class="wb-right">오늘의 메뉴 추천 👆</div>
+</div>
+
+<!-- 날씨 추천 팝업 -->
+<div class="weather-popup" id="weatherPopup">
+  <div class="wp-box">
+    <div class="wp-header">
+      <div class="wp-title">🌤️ 오늘의 메뉴 추천</div>
+      <button class="wp-close" onclick="document.getElementById('weatherPopup').classList.remove('show')">✕</button>
+    </div>
+    <div class="wp-weather">
+      <div class="wp-emoji" id="wpEmoji">⏳</div>
+      <div class="wp-wdesc" id="wpDesc">날씨 불러오는 중...</div>
+      <div class="wp-wtemp" id="wpTemp"></div>
+      <div class="wp-reason" id="wpReason"></div>
+    </div>
+    <div class="wp-rec-title">이런 메뉴 어때요?</div>
+    <div class="wp-rec-list" id="wpRecList"></div>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="stat-n" id="sv">0</div><div class="stat-l">이번달 방문</div></div>
+  <div class="stat"><div class="stat-n" id="stotal">0</div><div class="stat-l">전체 식당</div></div>
+  <div class="stat"><div class="stat-n" id="sp">0%</div><div class="stat-l">달성률</div></div>
+</div>
+
+<div id="map"></div>
+
+<div class="legend">
+  <div class="leg"><div class="leg-dot" style="background:#E8C170"></div>한식</div>
+  <div class="leg"><div class="leg-dot" style="background:#378ADD"></div>중식</div>
+  <div class="leg"><div class="leg-dot" style="background:#D85A30"></div>일식·면</div>
+  <div class="leg"><div class="leg-dot" style="background:#7F77DD"></div>분식·기타</div>
+  <div class="leg"><div class="leg-dot" style="background:#D4537E"></div>외국음식</div>
+  <div class="leg"><div class="leg-dot" style="background:#3C3489"></div>DH(회사)</div>
+  <div class="leg"><span style="font-size:13px;line-height:1">⭐</span>오늘 방문</div>
+</div>
+
+<div class="add-wrap">
+  <div class="add-head" id="addHead">
+    <div class="add-head-t">+ 식당 추가하기</div>
+    <div class="add-head-icon" id="addIcon">＋</div>
+  </div>
+  <div class="add-body" id="addBody">
+    <div class="s-row">
+      <input class="s-inp" type="text" id="searchInput" placeholder="상호명 검색 (예: 야탑 순대국)"/>
+      <button class="s-btn" id="searchBtn">검색</button>
+    </div>
+    <div class="loading-t" id="loadingT">검색 중...</div>
+    <div class="sr-list" id="srList"></div>
+    <div class="sel-hint" id="selHint"></div>
+
+    <div class="divider"><span>또는 직접 입력</span></div>
+    <div class="simple-form">
+      <input class="sf-inp" type="text" id="mName" placeholder="식당 이름 *" style="flex:2"/>
+      <input class="sf-inp" type="text" id="mType" placeholder="종류 (예: 삼겹살)"/>
+      <select class="sf-sel" id="mCat">
+        <option value="korean">한식</option>
+        <option value="chinese">중식</option>
+        <option value="japanese">일식·면</option>
+        <option value="viet">외국음식</option>
+        <option value="other">분식·기타</option>
+      </select>
+    </div>
+    <button class="btn-add" id="addBtn">지도에 추가하기</button>
+    <div class="status" id="statusMsg"></div>
+    <div class="coord-hint">검색으로 선택하면 정확한 위치가 자동으로 설정돼요</div>
+  </div>
+</div>
+
+<div class="list-wrap">
+  <div class="list-hd" id="listHd">전체 식당</div>
+  <div class="list" id="rlist"></div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const MONTHS=['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+const NOW_M=new Date().getMonth();
+let activeM=NOW_M;
+
+const CAT_COLOR={korean:'#E8C170',chinese:'#378ADD',japanese:'#D85A30',viet:'#D4537E',other:'#7F77DD'};
+const CAT_VIS={korean:'#A08030',chinese:'#0C447C',japanese:'#712B13',viet:'#72243E',other:'#3C3489'};
+const CAT_VFILL={korean:'#FAE89A',chinese:'#B5D4F4',japanese:'#F5C4B3',viet:'#F4C0D1',other:'#CECBF6'};
+const CAT_LABEL={korean:'한식',chinese:'중식',japanese:'일식·면',viet:'외국음식',other:'분식·기타'};
+const BYC={lat:37.4109286,lng:127.1292454};
+
+const RESTS=[
+  {id:'r01',name:'신사골감자탕',type:'감자탕',cat:'korean',rating:4.0,hours:'24시간',lat:37.4107437,lng:127.1302032},
+  {id:'r02',name:'진지왕순대국',type:'순대국',cat:'korean',rating:3.8,hours:'08:00~24:00',lat:37.4108752,lng:127.1302006},
+  {id:'r03',name:'본죽',type:'죽',cat:'korean',rating:3.6,hours:'09:00~21:00',lat:37.4104307,lng:127.1269518},
+  {id:'r04',name:'역전국밥',type:'국밥',cat:'korean',rating:null,hours:'미확인',lat:37.4099988,lng:127.1306294},
+  {id:'r05',name:'보배반점',type:'중화요리',cat:'chinese',rating:4.0,hours:'11:30~23:00',lat:37.4124835,lng:127.1306177},
+  {id:'r06',name:'안동황우촌',type:'한우구이',cat:'korean',rating:4.1,hours:'11:00~22:00',lat:37.4116542,lng:127.1309902},
+  {id:'r07',name:'수타우동겐',type:'우동',cat:'japanese',rating:4.3,hours:'11:00~15:00',lat:37.4094769,lng:127.1266554},
+  {id:'r08',name:'아비꼬',type:'인도카레',cat:'other',rating:null,hours:'11:00~21:30',lat:37.4112,lng:127.1295},
+  {id:'r09',name:'영심이분식',type:'떡볶이·김밥',cat:'other',rating:4.2,hours:'11:00~21:00',lat:37.4120506,lng:127.1296848},
+  {id:'r10',name:'춘천황가닭갈비',type:'닭갈비',cat:'korean',rating:null,hours:'11:00~22:00',lat:37.4108,lng:127.1312},
+  {id:'r11',name:'이소정카츠',type:'돈카츠',cat:'japanese',rating:5.0,hours:'10:30~15:00',lat:37.4123094,lng:127.1298487},
+  {id:'r12',name:'인더비엣',type:'베트남음식',cat:'viet',rating:4.5,hours:'11:00~22:00',lat:37.411807,lng:127.1297567},
+  {id:'r13',name:'지호한방삼계탕',type:'삼계탕',cat:'korean',rating:4.1,hours:'10:00~22:00',lat:37.4110164,lng:127.1307109},
+  {id:'r14',name:'송이찌개마을',type:'김치찌개',cat:'korean',rating:4.3,hours:'11:00~22:00',lat:37.4129545,lng:127.1255043},
+  {id:'r15',name:'강릉심곡포구',type:'생선요리',cat:'korean',rating:4.3,hours:'미확인',lat:37.4111323,lng:127.1268178},
+  {id:'r17',name:'통돼지김치찌개',type:'김치찌개',cat:'korean',rating:3.8,hours:'11:00~21:30',lat:37.4117053,lng:127.1266926},
+  {id:'r18',name:'안골식당',type:'닭볶음탕',cat:'korean',rating:5.0,hours:'10:00~21:00',lat:37.4116217,lng:127.1263444},
+  {id:'r19',name:'이태리부대찌개',type:'부대찌개',cat:'korean',rating:4.1,hours:'10:00~22:00',lat:37.4107739,lng:127.1266819},
+  {id:'r21',name:'등촌칼국수',type:'칼국수',cat:'korean',rating:4.1,hours:'11:00~21:30',lat:37.4099179,lng:127.1355697},
+  {id:'r22',name:'두리부대찌개',type:'부대찌개',cat:'korean',rating:4.2,hours:'09:30~21:30',lat:37.412975,lng:127.134244},
+  {id:'r23',name:'초록지붕전주명가',type:'전주식당',cat:'korean',rating:3.9,hours:'07:30~21:30',lat:37.4130556,lng:127.1308333},
+  {id:'r24',name:'두툼해',type:'회·생선',cat:'japanese',rating:4.5,hours:'15:30~23:30',lat:37.4122086,lng:127.1320822},
+  {id:'r25',name:'도글리',type:'이탈리안',cat:'other',rating:null,hours:'미확인',lat:37.409962,lng:127.1311177},
+  {id:'r26',name:'원쭈꾸미',type:'쭈꾸미볶음',cat:'korean',rating:null,hours:'11:00~22:00',lat:37.4106,lng:127.1308},
+  {id:'r27',name:'미카도스시',type:'회전초밥',cat:'japanese',rating:3.0,hours:'미확인',lat:37.4101358,lng:127.1301618},
+  {id:'r28',name:'백년불고기',type:'불고기',cat:'korean',rating:4.1,hours:'11:00~23:00',lat:37.410498,lng:127.1309613},
+  {id:'r29',name:'오봉집',type:'낙지볶음·보쌈',cat:'korean',rating:4.1,hours:'11:00~22:00',lat:37.4113495,lng:127.1313484},
+  {id:'r30',name:'장수촌',type:'삼겹살',cat:'korean',rating:4.1,hours:'12:00~22:30',lat:37.4116398,lng:127.1310979},
+  {id:'r31',name:'이모네밥상',type:'가정식 백반',cat:'korean',rating:5.0,hours:'미확인',lat:37.4116783,lng:127.1332429},
+  {id:'r32',name:'송쉐프 야탑점',type:'한식 코스',cat:'korean',rating:4.5,hours:'11:30~21:00',lat:37.4114,lng:127.1304},
+  {id:'r33',name:'뿅의전설 야탑본점',type:'치킨·맥주',cat:'other',rating:4.3,hours:'17:00~02:00',lat:37.4121,lng:127.1316},
+  {id:'r34',name:'백소정 야탑역점',type:'돈카츠·우동',cat:'japanese',rating:4.1,hours:'11:00~21:00',lat:37.4111721,lng:127.1268295},
+  {id:'r35',name:'샬롬돈가스',type:'돈카츠',cat:'japanese',rating:4.5,hours:'12:00~20:00',lat:37.4126093,lng:127.1254891},
+  {id:'r36',name:'두끼 NC야탑점',type:'떡볶이뷔페',cat:'other',rating:3.8,hours:'11:00~21:00',lat:37.4103789,lng:127.1272851},
+  {id:'r37',name:'이정토속청국장',type:'청국장',cat:'korean',rating:4.2,hours:'미확인',lat:37.4107362,lng:127.1342371},
+  {id:'r38',name:'소담촌 야탑',type:'샤브샤브',cat:'korean',rating:4.4,hours:'10:00~23:00',lat:37.4115089,lng:127.1298623},
+];
+
+let visits={}, userRests=[], hiddenRests=[], leafletMarkers={};
+let pendingLat=null, pendingLng=null;
+let gmap=null;
+
+// ── Supabase 실시간 공유 ───────────────────────────────
+const SB_URL = 'https://gwdviwrijojucwrzaayb.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd3ZHZpd3Jpam9qdWN3cnphYXliIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczOTE1NjIsImV4cCI6MjA5Mjk2NzU2Mn0.oP3HIQXsT5oyCZd9RBeyyHXUrEIRp68XVfsSAhugR_0';
+const SB_HDR = {'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY};
+
+async function sbGet(){
+  const r=await fetch(`${SB_URL}/rest/v1/data?select=id,data&order=id.asc&limit=1`,{headers:SB_HDR});
+  if(!r.ok) throw new Error(r.status);
+  const rows=await r.json();
+  if(!rows.length) return {userRests:[],hiddenRests:[]};
+  return JSON.parse(rows[0].data);
+}
+async function sbSet(payload){
+  const r=await fetch(`${SB_URL}/rest/v1/data?id=eq.1`,{
+    method:'PATCH',
+    headers:SB_HDR,
+    body:JSON.stringify({data:JSON.stringify(payload)})
+  });
+  if(!r.ok) throw new Error(r.status);
+}
+
+async function loadData(){
+  // 1. 캐시에서 즉시 로드
+  try{const u=localStorage.getItem('oj-ur');userRests=u?JSON.parse(u):[];}catch(e){userRests=[];}
+  try{const h=localStorage.getItem('oj-hr');hiddenRests=h?JSON.parse(h):[];}catch(e){hiddenRests=[];}
+  try{const v=localStorage.getItem('oj-v-'+activeM);visits=v?JSON.parse(v):{};}catch(e){visits={};}
+
+  // 2. 백그라운드에서 Supabase 최신 데이터
+  setTimeout(async()=>{
+    try{
+      showSyncStatus('최신 데이터 확인 중...');
+      const rd=await sbGet();
+      const newRests=rd.userRests||[];
+      const newHidden=rd.hiddenRests||[];
+      if(JSON.stringify(newRests)!==JSON.stringify(userRests)||JSON.stringify(newHidden)!==JSON.stringify(hiddenRests)){
+        userRests=newRests; hiddenRests=newHidden;
+        localStorage.setItem('oj-ur',JSON.stringify(userRests));
+        localStorage.setItem('oj-hr',JSON.stringify(hiddenRests));
+        newHidden.forEach(id=>{if(leafletMarkers[id]){leafletMarkers[id].remove();delete leafletMarkers[id];}});
+        userRests.forEach(r=>{if(!leafletMarkers[r.id])addMarker(r);});
+        allR().forEach(r=>updateMarker(r.id));
+        renderStats(); renderList();
+      }
+      hideSyncStatus();
+    }catch(e){
+      hideSyncStatus();
+      console.error('백그라운드 업데이트 실패',e);
+    }
+  },100);
+}
+
+async function saveU(){
+  try{
+    localStorage.setItem('oj-ur',JSON.stringify(userRests));
+    localStorage.setItem('oj-hr',JSON.stringify(hiddenRests));
+    await sbSet({userRests,hiddenRests});
+  }catch(e){console.error('saveU',e);}
+}
+async function saveV(){
+  try{ localStorage.setItem('oj-v-'+activeM, JSON.stringify(visits)); }catch(e){}
+}
+
+// 30초마다 자동 새로고침
+setInterval(async()=>{
+  try{
+    const rd=await sbGet();
+    const newRests=rd.userRests||[];
+    const newHidden=rd.hiddenRests||[];
+    if(JSON.stringify(newRests)!==JSON.stringify(userRests)||JSON.stringify(newHidden)!==JSON.stringify(hiddenRests)){
+      userRests=newRests; hiddenRests=newHidden;
+      localStorage.setItem('oj-ur',JSON.stringify(userRests));
+      localStorage.setItem('oj-hr',JSON.stringify(hiddenRests));
+      newHidden.forEach(id=>{if(leafletMarkers[id]){leafletMarkers[id].remove();delete leafletMarkers[id];}});
+      userRests.forEach(r=>{if(!leafletMarkers[r.id])addMarker(r);});
+      allR().forEach(r=>updateMarker(r.id));
+      renderStats(); renderList();
+    }
+  }catch(e){}
+},30000);
+const WEATHER_ICONS={
+  '맑음':'☀️','구름조금':'🌤️','구름많음':'⛅','흐림':'☁️',
+  '비':'🌧️','눈':'❄️','소나기':'⛈️','안개':'🌫️'
+};
+
+function getWeatherRecs(temp, desc){
+  const today = new Date();
+  const month = today.getMonth()+1;
+  const day   = today.getDate();
+
+  // ── 특별일 체크 ──────────────────────────────────────
+  // 복날 (초복: 7월 셋째 경일, 중복: 네째 경일, 말복: 8월 첫째 경일 근사)
+  const isBoknal = (month===7&&day>=11&&day<=30)||(month===8&&day<=15);
+  // 기력회복의 날: 매월 마지막 주 금요일
+  const lastDay = new Date(today.getFullYear(),month,0).getDate();
+  const lastFri = lastDay - ((new Date(today.getFullYear(),month-1,lastDay).getDay()+1)%7);
+  const isPowerDay = day===lastFri;
+
+  if(isBoknal) return {
+    reason:'복날엔 삼계탕으로 보양!', icon:'🐔',
+    rests:['지호한방삼계탕','안골식당','춘천황가닭갈비','진지왕순대국','백년불고기']
+  };
+  if(isPowerDay) return {
+    reason:'이번달 기력 회복! 고기 먹는 날 💪', icon:'🥩',
+    rests:['장수촌','안동황우촌','서현실비 야탑점','백년불고기','오봉집','뿅의전설 야탑본점']
+  };
+
+  // ── 날씨 기반 ─────────────────────────────────────────
+  if(temp>=30) return {
+    reason:'폭염! 시원한 거 먹어야 살아요 🥵', icon:'🥵',
+    rests:['수타우동겐','인더비엣','강릉심곡포구','미카도스시','본죽','이소정카츠']
+  };
+  if(temp>=25) return {
+    reason:'더운 날엔 가볍게!', icon:'😓',
+    rests:['인더비엣','수타우동겐','영심이분식','강릉심곡포구','본죽','도글리']
+  };
+  if(temp>=18) return {
+    reason:'딱 좋은 날씨! 뭐든 맛있어요 😊', icon:'😊',
+    rests:['이소정카츠','송쉐프 야탑점','안골식당','두툼해','도글리','긴자료코','인더비엣','강릉심곡포구']
+  };
+  if(temp>=10) return {
+    reason:'쌀쌀하네요. 따뜻한 국물 어때요?', icon:'🍲',
+    rests:['신사골감자탕','진지왕순대국','지호한방삼계탕','등촌칼국수','두리부대찌개','이태리부대찌개','송이찌개마을']
+  };
+  if(temp>=0) return {
+    reason:'추운 날엔 뜨끈한 국밥!', icon:'🥣',
+    rests:['역전국밥','신사골감자탕','진지왕순대국','통돼지김치찌개','송이찌개마을','안골식당','초록지붕전주명가']
+  };
+  return {
+    reason:'한파! 뜨끈한 국물로 몸 녹여요 🔥', icon:'🥶',
+    rests:['역전국밥','신사골감자탕','등촌칼국수','두리부대찌개','이태리부대찌개','통돼지김치찌개']
+  };
+}
+
+// 비/눈 날씨 오버라이드
+function getWeatherDesc(code, temp){
+  if(code>=80&&code<=99) return {
+    reason:'비 오는 날엔 역시 파전에 막걸리... 대신 칼국수!', icon:'🌧️',
+    rests:['등촌칼국수','두리부대찌개','이태리부대찌개','신사골감자탕','송이찌개마을','통돼지김치찌개']
+  };
+  if(code>=70&&code<=79) return {
+    reason:'눈 오는 날엔 따끈한 국물!', icon:'❄️',
+    rests:['역전국밥','신사골감자탕','진지왕순대국','등촌칼국수','송이찌개마을']
+  };
+  return null;
+}
+
+// 날짜 기반 시드로 매일 다른 3개 추출 (겹치지 않게)
+function getDailyPick(arr, count){
+  const today=new Date();
+  const seed=today.getFullYear()*10000+(today.getMonth()+1)*100+today.getDate();
+  const shuffled=[...arr];
+  for(let i=shuffled.length-1;i>0;i--){
+    const j=Math.abs((seed*(i+3)+17)%shuffled.length);
+    [shuffled[i],shuffled[j]]=[shuffled[j],shuffled[i]];
+  }
+  return shuffled.slice(0,count);
+}
+
+async function loadWeather(){
+  try{
+    const url='https://api.open-meteo.com/v1/forecast?latitude=37.411&longitude=127.129&current=temperature_2m,weathercode&timezone=Asia/Seoul';
+    const resp=await fetch(url);
+    const data=await resp.json();
+    const temp=Math.round(data.current.temperature_2m);
+    const code=data.current.weathercode;
+
+    let wdesc='맑음', wicon='☀️';
+    if(code===0){wdesc='맑음';wicon='☀️';}
+    else if(code<=2){wdesc='구름조금';wicon='🌤️';}
+    else if(code<=3){wdesc='흐림';wicon='☁️';}
+    else if(code<=49){wdesc='안개';wicon='🌫️';}
+    else if(code<=69){wdesc='비';wicon='🌧️';}
+    else if(code<=79){wdesc='눈';wicon='❄️';}
+    else if(code<=99){wdesc='소나기';wicon='⛈️';}
+
+    // 비/눈 오버라이드 체크
+    const override=getWeatherDesc(code,temp);
+    const rec=override||getWeatherRecs(temp,wdesc);
+
+    // 오늘의 3개 추출
+    const todayPicks=getDailyPick(rec.rests,3);
+
+    // 배너
+    document.getElementById('wbIcon').textContent=wicon;
+    document.getElementById('wbTemp').textContent=`${temp}°C ${wdesc}`;
+    document.getElementById('wbDesc').textContent='야탑 현재 날씨 · 오늘의 추천 메뉴 보기 👆';
+
+    // 팝업
+    document.getElementById('wpEmoji').textContent=rec.icon||wicon;
+    document.getElementById('wpDesc').textContent=wdesc;
+    document.getElementById('wpTemp').textContent=`${temp}°C`;
+    document.getElementById('wpReason').textContent=rec.reason;
+
+    const list=document.getElementById('wpRecList');
+    list.innerHTML=`<div style="font-size:11px;color:#aaa;margin-bottom:8px">오늘의 추천 3곳 (매일 바뀌어요 🎲)</div>`;
+
+    todayPicks.forEach((nm,idx)=>{
+      const r=allR().find(x=>x.name===nm);
+      if(!r) return;
+      const medals=['🥇','🥈','🥉'];
+      const div=document.createElement('div');
+      div.className='wp-rec-item';
+      div.innerHTML=`
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:20px">${medals[idx]||'🍽️'}</span>
+          <div>
+            <div class="wp-rec-nm">${r.name}</div>
+            <div class="wp-rec-why">${r.type}${r.rating?` · ⭐${r.rating}`:''}</div>
+          </div>
+        </div>
+      `;
+      div.onclick=()=>{
+        document.getElementById('weatherPopup').classList.remove('show');
+        if(gmap) gmap.setView([r.lat,r.lng],18,{animate:true});
+        setTimeout(()=>leafletMarkers[r.id]?.openPopup(),500);
+      };
+      list.appendChild(div);
+    });
+
+  }catch(e){
+    document.getElementById('wbTemp').textContent='날씨 정보 없음';
+    document.getElementById('wbIcon').textContent='🌡️';
+  }
+}
+
+// 30초마다 식당 목록만 자동 새로고침
+setInterval(async()=>{
+  try{
+    if(!BIN_ID_RESTS) return;
+    const rd=await jbinGet(BIN_ID_RESTS);
+    const newRests=rd.userRests||[];
+    const newHidden=rd.hiddenRests||[];
+    if(JSON.stringify(newRests)!==JSON.stringify(userRests)||JSON.stringify(newHidden)!==JSON.stringify(hiddenRests)){
+      userRests=newRests; hiddenRests=newHidden;
+      newHidden.forEach(id=>{if(leafletMarkers[id]){leafletMarkers[id].remove();delete leafletMarkers[id];}});
+      userRests.forEach(r=>{ if(!leafletMarkers[r.id]) addMarker(r); });
+      allR().forEach(r=>updateMarker(r.id));
+      renderStats(); renderList();
+    }
+  }catch(e){}
+},30000);
+
+function showSyncStatus(msg){
+  let el=document.getElementById('syncStatus');
+  if(!el){el=document.createElement('div');el.id='syncStatus';el.style.cssText='position:fixed;bottom:16px;right:16px;background:#fbf2c0;color:#7a5c10;font-size:11px;padding:6px 12px;border-radius:20px;border:1px solid #e8d98a;z-index:9999;font-family:inherit;box-shadow:0 2px 8px rgba(0,0,0,.1)';document.body.appendChild(el);}
+  el.textContent='🔄 '+msg; el.style.display='block';
+}
+function hideSyncStatus(){
+  const el=document.getElementById('syncStatus'); if(el) el.style.display='none';
+}
+
+function allR(){
+  const base = RESTS.filter(r=>!hiddenRests.includes(r.id));
+  return [...base, ...userRests];
+}
+
+// ── 별점 ──────────────────────────────────────────────
+function starsHtml(r){
+  if(r==null)return'<span style="color:#ccc;font-size:10px">별점없음</span>';
+  let s='';const f=Math.floor(r);
+  for(let i=0;i<5;i++)s+=i<f?'★':(i===f&&r-f>=.5?'½':'☆');
+  return`<span style="color:#EF9F27">${s}</span><span style="color:#aaa;font-size:10px"> ${r.toFixed(1)}</span>`;
+}
+
+// ── 핀 아이콘 생성 ─────────────────────────────────────
+function makeIcon(r, vis){
+  const col = vis ? '#EF9F27' : (CAT_COLOR[r.cat]||'#888');
+  const bg  = vis ? '#FFF9E6' : '#fff';
+  const borderCol = vis ? '#EF9F27' : (CAT_COLOR[r.cat]||'#888');
+  const size = vis ? 34 : 28;
+
+  // 방문완료 = 노란 별표, 미방문 = 카테고리 색 점
+  const inner = vis
+    ? `<svg width="${size-6}" height="${size-6}" viewBox="0 0 20 20" style="position:absolute">
+        <polygon points="10,2 12.4,7.5 18.5,8 14,12.5 15.5,18.5 10,15.5 4.5,18.5 6,12.5 1.5,8 7.6,7.5"
+          fill="#EF9F27" stroke="#d48a00" stroke-width="0.8" stroke-linejoin="round"/>
+      </svg>`
+    : `<div style="width:8px;height:8px;border-radius:50%;background:${CAT_COLOR[r.cat]||'#888'}"></div>`;
+
+  // 이름 라벨 (최대 5자)
+  const label = r.name.length > 6 ? r.name.slice(0,6)+'…' : r.name;
+  const labelHtml = `<div style="
+    margin-top:2px;
+    background:${vis?'#FFF9E6':'rgba(255,255,255,0.92)'};
+    color:${vis?'#a06000':'#333'};
+    font-size:10px;
+    font-weight:${vis?'700':'500'};
+    font-family:'Noto Sans KR',sans-serif;
+    padding:1px 5px;
+    border-radius:4px;
+    border:1px solid ${vis?'#EF9F2780':'rgba(0,0,0,0.12)'};
+    white-space:nowrap;
+    box-shadow:0 1px 3px rgba(0,0,0,0.12);
+    max-width:80px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  ">${label}</div>`;
+
+  const html = `<div style="display:flex;flex-direction:column;align-items:center;cursor:pointer">
+    <div style="width:${size}px;height:${size}px;border-radius:50%;background:${bg};border:${vis?3:2}px solid ${borderCol};display:flex;align-items:center;justify-content:center;position:relative;box-shadow:0 2px ${vis?10:5}px rgba(0,0,0,${vis?0.3:0.2});">
+      ${inner}
+    </div>
+    <div style="width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:8px solid ${borderCol};margin-top:-1px"></div>
+    ${labelHtml}
+  </div>`;
+
+  const totalH = size + 9 + 18; // 원 + 스파이크 + 라벨
+  return L.divIcon({html, className:'', iconSize:[90, totalH], iconAnchor:[45, size+9], popupAnchor:[0, -(size+9)]});
+}
+
+function makeDHIcon(){
+  const html=`<div style="display:flex;flex-direction:column;align-items:center;cursor:default">
+    <div style="width:38px;height:38px;border-radius:6px;background:#3C3489;border:2.5px solid #FAE89A;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(60,50,137,.4)">
+      <span style="color:#fff;font-size:11px;font-weight:700;font-family:'Noto Sans KR',sans-serif">DH</span>
+    </div>
+    <div style="width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:9px solid #3C3489;margin-top:-1px"></div>
+  </div>`;
+  return L.divIcon({html,className:'',iconSize:[38,48],iconAnchor:[19,48],popupAnchor:[0,-50]});
+}
+
+// ── 팝업 HTML ──────────────────────────────────────────
+function popupHtml(r){
+  const vis=!!visits[r.id];
+  const col=CAT_VIS[r.cat]||'#444';
+  const isU=!!userRests.find(u=>u.id===r.id);
+  return`<div class="popup-inner">
+    <div class="pop-name">${r.name}${isU?'<span class="utag">+</span>':''}</div>
+    <div class="pop-type">${CAT_LABEL[r.cat]||''} · ${r.type||''}</div>
+    <div class="pop-stars">${starsHtml(r.rating)}</div>
+    ${r.hours&&r.hours!=='미확인'?`<div class="pop-hours">${r.hours}</div>`:''}
+    ${vis?`<div class="pop-visit-date" style="color:${col}">✓ ${MONTHS[activeM]} ${visits[r.id]} 방문완료</div>`:''}
+    <button class="pop-btn ${vis?'uncheck':'check'}" onclick="toggleFromPopup('${r.id}')">${vis?'⭐ 방문 취소':'⭐ 오늘 먹었어요!'}</button>
+  </div>`;
+}
+
+// ── 지도 초기화 ────────────────────────────────────────
+function initMap(){
+  gmap=L.map('map',{zoomControl:true,attributionControl:true}).setView([BYC.lat,BYC.lng],17);
+
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
+    attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+    maxZoom:19,subdomains:'abcd'
+  }).addTo(gmap);
+
+  // DH 빌딩 마커
+  L.marker([BYC.lat,BYC.lng],{icon:makeDHIcon(),zIndexOffset:1000})
+    .addTo(gmap)
+    .bindPopup(`<div class="popup-inner"><div class="pop-name" style="color:#3C3489">DH (BYC빌딩)</div><div class="pop-type">우리 회사 🏢</div></div>`);
+
+  // 식당 마커들
+  allR().forEach(r=>addMarker(r));
+}
+
+function addMarker(r){
+  if(!gmap) return;
+  const vis=!!visits[r.id];
+  const m=L.marker([r.lat,r.lng],{
+    icon:makeIcon(r,vis),
+    zIndexOffset:vis?100:0
+  }).addTo(gmap);
+  m.bindPopup(popupHtml(r),{maxWidth:230});
+  leafletMarkers[r.id]=m;
+}
+
+function updateMarker(id){
+  const r=allR().find(x=>x.id===id);
+  if(!r||!leafletMarkers[id]) return;
+  const vis=!!visits[id];
+  leafletMarkers[id].setIcon(makeIcon(r,vis));
+  leafletMarkers[id].setZIndexOffset(vis?100:0);
+  if(leafletMarkers[id].isPopupOpen()) leafletMarkers[id].setPopupContent(popupHtml(r));
+}
+
+window.toggleFromPopup=function(id){
+  toggle(id);
+  updateMarker(id);
+};
+
+// ── 방문 토글 ──────────────────────────────────────────
+async function toggle(id){
+  const today=new Date().toLocaleDateString('ko-KR',{month:'numeric',day:'numeric'});
+  if(visits[id])delete visits[id]; else visits[id]=today;
+  showSyncStatus('저장 중...');
+  await saveV();
+  hideSyncStatus();
+  updateMarker(id); renderStats(); renderList();
+}
+
+async function delRest(id){
+  if(!confirm('이 식당을 삭제할까요?\n모든 사람에게서 삭제됩니다.'))return;
+  const isDefault = RESTS.find(r=>r.id===id);
+  if(isDefault){
+    // 기본 식당은 hiddenRests에 추가
+    if(!hiddenRests.includes(id)) hiddenRests.push(id);
+  } else {
+    // 직접 추가한 식당은 목록에서 제거
+    userRests = userRests.filter(r=>r.id!==id);
+  }
+  delete visits[id];
+  showSyncStatus('삭제 중...');
+  await Promise.all([saveU(), saveV()]);
+  hideSyncStatus();
+  if(leafletMarkers[id]){leafletMarkers[id].remove();delete leafletMarkers[id];}
+  renderStats(); renderList();
+}
+
+// ── TABS ───────────────────────────────────────────────
+function renderTabs(){
+  const w=document.getElementById('mtabs'); w.innerHTML='';
+  const colors=['#E24B4A','#D85A30','#EF9F27','#639922','#E8C170','#E8C170','#378ADD','#534AB7','#D4537E','#D85A30','#E24B4A','#888780'];
+  MONTHS.forEach((m,i)=>{
+    const b=document.createElement('button');
+    b.className='mtab'+(i===activeM?' on':'');
+    b.textContent=m;
+    if(i===activeM)b.style.background=colors[i];
+    b.onclick=()=>{
+      activeM=i;
+      try{const v=localStorage.getItem('oj-v-'+i);visits=v?JSON.parse(v):{};}catch(e){visits={};}
+      renderTabs(); renderStats(); renderList();
+      allR().forEach(r=>updateMarker(r.id));
+      setTimeout(()=>{const on=document.querySelector('.mtab.on');if(on)on.scrollIntoView({inline:'center',behavior:'smooth'});},30);
+    };
+    w.appendChild(b);
+  });
+}
+
+function renderStats(){
+  const all=allR(),v=Object.keys(visits).filter(id=>all.find(r=>r.id===id)).length,t=all.length;
+  document.getElementById('sv').textContent=v;
+  document.getElementById('stotal').textContent=t;
+  document.getElementById('sp').textContent=Math.round(v/t*100)+'%';
+  document.getElementById('listHd').textContent=`전체 식당 (${t}곳)`;
+}
+
+function renderList(){
+  const wrap=document.getElementById('rlist'); wrap.innerHTML='';
+  [...allR()].sort((a,b)=>(b.rating||0)-(a.rating||0)).forEach(r=>{
+    const vis=!!visits[r.id];
+    const col=CAT_COLOR[r.cat]||'#888';
+    const vcol=CAT_VIS[r.cat]||'#444';
+    const vfill=CAT_VFILL[r.cat]||'#eee';
+    const isU=!!userRests.find(u=>u.id===r.id);
+    const card=document.createElement('div');
+    card.className='rc'+(vis?' vis':'');
+    if(vis){card.style.borderColor=vcol;card.style.background=vfill;}
+    card.innerHTML=`
+      <button class="del" data-id="${r.id}" title="삭제">✕</button>
+      <div class="rc-top">
+        <div class="rc-nm" style="color:${vis?vcol:'var(--text)'}">${r.name}${isU?'<span class="utag">+</span>':''}</div>
+        <div class="rc-badge" style="background:${vis?vfill:'transparent'};color:${vis?vcol:col};border-color:${vis?vcol:col}">${CAT_LABEL[r.cat]||'기타'}</div>
+      </div>
+      <div class="rc-type">${r.type||''}</div>
+      <div class="rc-stars">${starsHtml(r.rating)}</div>
+      ${r.hours&&r.hours!=='미확인'?`<div class="rc-hrs">${r.hours}</div>`:''}
+      ${vis?`<div class="rc-date" style="color:${vcol}">✓ ${MONTHS[activeM]} ${visits[r.id]} 방문</div>`:''}
+    `;
+    card.addEventListener('click',(e)=>{
+      if(e.target.classList.contains('del'))return;
+      toggle(r.id);
+      // 지도 해당 마커로 이동
+      if(leafletMarkers[r.id]){
+        gmap.setView([r.lat,r.lng],17,{animate:true});
+        leafletMarkers[r.id].openPopup();
+      }
+    });
+    const db=card.querySelector('.del');
+    if(db)db.addEventListener('click',(e)=>{e.stopPropagation();delRest(r.id);});
+    wrap.appendChild(card);
+  });
+}
+
+// ── ADD 토글 ───────────────────────────────────────────
+document.getElementById('addHead').addEventListener('click',()=>{
+  const body=document.getElementById('addBody');
+  const icon=document.getElementById('addIcon');
+  body.classList.toggle('open');
+  icon.textContent=body.classList.contains('open')?'－':'＋';
+});
+
+// ── 검색 (카카오 REST API) ─────────────────────────────
+const KAKAO_REST_KEY = 'bb762f278d75c07467ed4730d815affc';
+
+function kakaoToCat(c){
+  if(!c) return 'other';
+  if(c.includes('일식')||c.includes('우동')||c.includes('라멘')||c.includes('돈카츠')) return 'japanese';
+  if(c.includes('중식')) return 'chinese';
+  if(c.includes('베트남')||c.includes('태국')||c.includes('인도')) return 'viet';
+  if(c.includes('분식')) return 'other';
+  return 'korean';
+}
+
+async function doSearch(){
+  const q = document.getElementById('searchInput').value.trim();
+  if(!q) return;
+  const loadT  = document.getElementById('loadingT');
+  const srList = document.getElementById('srList');
+  const btn    = document.getElementById('searchBtn');
+  const hint   = document.getElementById('selHint');
+  loadT.style.display='block'; srList.innerHTML=''; hint.style.display='none'; btn.disabled=true;
+
+  try{
+    const url = `https://dapi.kakao.com/v2/local/search/keyword.json`
+      + `?query=${encodeURIComponent(q)}`
+      + `&x=${BYC.lng}&y=${BYC.lat}&radius=1500&size=8&sort=distance`;
+
+    const resp = await fetch(url, {
+      headers: { 'Authorization': `KakaoAK ${KAKAO_REST_KEY}` }
+    });
+
+    loadT.style.display='none'; btn.disabled=false;
+
+    if(!resp.ok){
+      const errData = await resp.json().catch(()=>({}));
+      srList.innerHTML=`<div style="font-size:12px;color:#c00;padding:6px 0">오류 ${resp.status}: ${errData.msg||'API 키를 확인해주세요.'}</div>`;
+      return;
+    }
+
+    const data = await resp.json();
+    const docs = data.documents||[];
+
+    if(!docs.length){
+      srList.innerHTML='<div style="font-size:12px;color:#aaa;padding:6px 0">검색 결과가 없어요. 다른 키워드로 시도하거나 직접 입력해주세요.</div>';
+      return;
+    }
+
+    docs.forEach(doc=>{
+      const name    = doc.place_name;
+      const addr    = doc.road_address_name || doc.address_name;
+      const dist    = doc.distance ? `${doc.distance}m` : '';
+      const catName = doc.category_name || '';
+      const lat     = parseFloat(doc.y);
+      const lng     = parseFloat(doc.x);
+      const cat     = kakaoToCat(catName);
+      const div = document.createElement('div');
+      div.className = 'sr-item';
+      div.innerHTML = `
+        <div class="sr-nm">${name}</div>
+        <div class="sr-mt">
+          <span style="color:#888">${addr}</span>
+          ${dist?`<span style="color:var(--green);font-weight:500;margin-left:6px">📍 ${dist}</span>`:''}
+        </div>
+        <div class="sr-mt" style="color:#bbb;font-size:10px;margin-top:1px">${catName}</div>
+      `;
+      div.addEventListener('click',()=>{
+        document.getElementById('mName').value = name;
+        document.getElementById('mType').value = catName.split('>').pop().trim();
+        document.getElementById('mCat').value  = cat;
+        pendingLat = lat; pendingLng = lng;
+        srList.innerHTML = '';
+        hint.textContent = `✓ "${name}" 선택됨 — 추가하기 버튼을 눌러주세요`;
+        hint.style.display = 'block';
+        if(gmap) gmap.setView([lat, lng], 18, {animate:true});
+      });
+      srList.appendChild(div);
+    });
+
+  }catch(err){
+    loadT.style.display='none'; btn.disabled=false;
+    console.error(err);
+    srList.innerHTML='<div style="font-size:12px;color:#c00;padding:6px 0">네트워크 오류가 발생했어요. 인터넷 연결을 확인해주세요.</div>';
+  }
+}
+document.getElementById('searchInput').addEventListener('keydown',e=>{if(e.key==='Enter') doSearch();});
+
+// ── 추가 ───────────────────────────────────────────────
+function showStatus(msg,ok){
+  const el=document.getElementById('statusMsg');
+  el.textContent=msg; el.className='status '+(ok?'ok':'err');
+  el.style.display='block'; setTimeout(()=>el.style.display='none',3500);
+}
+
+document.getElementById('addBtn').addEventListener('click', async()=>{
+  const name=document.getElementById('mName').value.trim();
+  if(!name){showStatus('식당 이름을 입력해주세요.',false);return;}
+  const type=document.getElementById('mType').value.trim()||'';
+  const cat=document.getElementById('mCat').value;
+  const lat=pendingLat||BYC.lat+(Math.random()-.5)*.005;
+  const lng=pendingLng||BYC.lng+(Math.random()-.5)*.007;
+
+  const r={id:'u'+Date.now(),name,type,cat,rating:null,hours:'미확인',lat,lng};
+  userRests.push(r);
+  showSyncStatus('저장 중...');
+  await saveU();
+  hideSyncStatus();
+  addMarker(r);
+  renderStats(); renderList();
+  showStatus(`"${name}" 지도에 추가됐어요! 모두에게 공유됩니다 🎉`,true);
+
+  if(gmap){gmap.setView([lat,lng],18,{animate:true});setTimeout(()=>leafletMarkers[r.id]?.openPopup(),500);}
+
+  document.getElementById('mName').value='';
+  document.getElementById('mType').value='';
+  document.getElementById('srList').innerHTML='';
+  document.getElementById('searchInput').value='';
+  document.getElementById('selHint').style.display='none';
+  pendingLat=null; pendingLng=null;
+});
+
+// ── 초기화 ─────────────────────────────────────────────
+(async()=>{
+  await loadData();
+  renderTabs();
+  renderStats();
+  renderList();
+  initMap();
+  loadWeather(); // 날씨 로드
+  setTimeout(()=>{
+    const on=document.querySelector('.mtab.on');
+    if(on)on.scrollIntoView({inline:'center',behavior:'smooth'});
+  },100);
+})();
+</script>
+</body>
+</html>
+
