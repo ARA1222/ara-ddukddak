@@ -6,6 +6,7 @@
 <title>경조사비 전표 자동입력</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <style>
   :root{
     --bg:#f4f6f8; --card:#ffffff; --ink:#1f2933; --sub:#616e7c;
@@ -127,9 +128,9 @@
     <div class="drop" id="drop">
       <div class="icon">🖼️</div>
       <div class="big">여기로 사진을 끌어다 놓거나 클릭해서 선택</div>
-      <div class="small">여러 장 한꺼번에 가능 · JPG·PNG 등 이미지 파일 (부고장·청첩장 캡처)</div>
+      <div class="small">여러 장 한꺼번에 가능 · JPG·PNG·PDF (부고장·청첩장 캡처 또는 스캔 파일)</div>
     </div>
-    <input type="file" id="fileInput" accept="image/*" multiple hidden />
+    <input type="file" id="fileInput" accept="image/*,application/pdf" multiple hidden />
     <div class="gallery" id="gallery"></div>
     <div class="btn-row">
       <button class="btn btn-primary" id="runBtn" disabled>📖 날짜 읽기 시작</button>
@@ -178,10 +179,13 @@
 <script>
 "use strict";
 
+pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js";
+
 // ---- 위하고 양식 고정값 ----
 const ACC_CODE=813, ACC_NAME="접대비", GUBUN="출금";
 const JEOKYO="거래처 경조사비 지급(조정)", SHEET_NAME="최종업로드";
 const MAX_DIM=1500;   // OCR 정확도를 위한 이미지 크기 기준(너무 작으면 흐린 글씨가 뭉개짐)
+const PDF_SCALE=2;    // PDF → 이미지 변환 배율(너무 작으면 OCR 정확도 저하)
 
 let items=[];   // {id,file,url,el, y,m,d,type,georae,amount,raw,dateOk,done}
 let worker=null, seq=0;
@@ -199,15 +203,41 @@ drop.addEventListener("dragleave",()=>drop.classList.remove("over"));
 drop.addEventListener("drop",e=>{e.preventDefault();drop.classList.remove("over");addFiles(e.dataTransfer.files);});
 fileInput.addEventListener("change",e=>{addFiles(e.target.files);fileInput.value="";});
 
-function addFiles(list){
+async function addFiles(list){
   for(const f of list){
-    if(!f.type.startsWith("image/")) continue;
-    const id=++seq, url=URL.createObjectURL(f);
-    const item={id,file:f,url,amount:parseInt($("defAmount").value)||200000,done:false};
-    items.push(item);
-    renderCell(item);
+    if(f.type==="application/pdf"){
+      await addPdfFile(f);
+    }else if(f.type.startsWith("image/")){
+      addImageItem(f,f.name,URL.createObjectURL(f));
+    }
   }
   updatePickUI();
+}
+function addImageItem(file,name,url){
+  const id=++seq;
+  const item={id,file:{name},url,amount:parseInt($("defAmount").value)||200000,done:false};
+  items.push(item);
+  renderCell(item);
+  return item;
+}
+// PDF 각 페이지를 캔버스에 그려 이미지로 변환 후 기존 파이프라인에 그대로 태움
+async function addPdfFile(f){
+  try{
+    const buf=await f.arrayBuffer();
+    const pdf=await pdfjsLib.getDocument({data:buf}).promise;
+    for(let p=1;p<=pdf.numPages;p++){
+      const page=await pdf.getPage(p);
+      const viewport=page.getViewport({scale:PDF_SCALE});
+      const cv=document.createElement("canvas");
+      cv.width=viewport.width; cv.height=viewport.height;
+      await page.render({canvasContext:cv.getContext("2d"),viewport}).promise;
+      const blob=await new Promise(res=>cv.toBlob(res,"image/png"));
+      const name=pdf.numPages>1?`${f.name} (${p}/${pdf.numPages}p)`:f.name;
+      addImageItem(f,name,URL.createObjectURL(blob));
+    }
+  }catch(err){
+    alert(`"${f.name}" PDF를 읽는 중 오류가 발생했습니다: ${err.message||err}`);
+  }
 }
 function renderCell(item){
   const cell=document.createElement("div");
@@ -344,7 +374,7 @@ runBtn.addEventListener("click",async()=>{
   try{
     if(!worker){
       progressText.textContent="OCR 엔진 준비 중… (첫 실행은 언어파일을 받느라 시간이 조금 걸립니다)";
-      worker=await Tesseract.createWorker("kor+eng",1,{langPath:"tessdata",gzip:true});
+      worker=await Tesseract.createWorker("kor+eng",1,{langPath:"https://cdn.jsdelivr.net/gh/naptha/tessdata@gh-pages/4.0.0_best",gzip:true});
     }
     for(let i=0;i<items.length;i++){
       const it=items[i];
