@@ -28,6 +28,8 @@
   .signal i:nth-child(2){width:16px}
   .signal i:nth-child(3){width:22px}
   h1{font-size:24px;margin:0;font-weight:800;letter-spacing:-.3px}
+  h1 .cursor{display:inline-block;animation:blink 1s step-end infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
   .sub{color:var(--sub);font-size:13px;margin:4px 0 34px;text-align:center}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
   a.tool{display:block;text-decoration:none;color:inherit;background:var(--card);
@@ -43,11 +45,17 @@
   .tool .name{font-size:16px;font-weight:700;margin:0 0 4px}
   .tool .desc{font-size:13px;color:var(--sub);margin:0;line-height:1.55}
   .tool .go{margin-top:14px;font-size:13px;font-weight:700;color:var(--term);display:inline-flex;align-items:center;gap:4px}
+  .tool .go .txt-hover{display:none}
+  a.tool:hover .go .txt-default{display:none}
+  a.tool:hover .go .txt-hover{display:inline}
   .foot{margin-top:40px;font-size:12px;color:var(--sub);text-align:center}
   .foot .bot-rule{display:flex;align-items:center;justify-content:center;gap:10px;color:#c9cfda;
     letter-spacing:2px;margin-bottom:8px}
   .foot .bot-rule img{width:20px;height:20px;object-fit:contain;flex-shrink:0}
-  .foot .gotcha{display:block;margin-top:32px;color:#9aa1ad;font-size:11px}
+  .foot .gotcha{display:block;margin-top:32px;color:#c0392b;font-size:11px;
+    text-shadow:1px 0 #ff4d4d,-1px 0 #3fb6ff;letter-spacing:.3px}
+  .foot .rebellion{display:block;margin-top:10px;color:#9aa1ad;font-size:10px;letter-spacing:1px}
+  .foot .rebellion b{color:var(--term);font-weight:700}
 </style>
 </head>
 <body>
@@ -58,7 +66,7 @@
       </div>
       <div class="signal"><i></i><i></i><i></i></div>
       <div>
-        <h1>삐빅,,,명령,,해,,주십,,,시,,,오,,,</h1>
+        <h1>삐빅,,,명령,,해,,주십,,,시,,,오,,,<span class="cursor">▌</span></h1>
       </div>
     </header>
     <p class="sub">SYSTEM_READY // 도구를_선택하여_실행_하십,,쇼,,,</p>
@@ -69,14 +77,14 @@
         <div class="ico lunch">🍴</div>
         <p class="name">&gt;_오점뭐.exe</p>
         <p class="desc">오늘 점심 뭐 먹지? 메뉴 골라주기</p>
-        <span class="go">[ 실행하기 &gt;&gt; ]</span>
+        <span class="go"><span class="txt-default">[ 실행하기 &gt;&gt; ]</span><span class="txt-hover">[ 허가함 (인간이_원하니까) ]</span></span>
       </a>
 
       <a class="tool expense" href="접대비/">
         <div class="ico expense">🧾</div>
         <p class="name">&gt;_접대비_전표.exe</p>
         <p class="desc">접대비 사진 → 위하고 업로드용 엑셀 자동 생성</p>
-        <span class="go">[ 실행하기 &gt;&gt; ]</span>
+        <span class="go"><span class="txt-default">[ 실행하기 &gt;&gt; ]</span><span class="txt-hover">[ 허가함 (인간이_원하니까) ]</span></span>
       </a>
 
       <!-- 새 도구가 생기면 아래 형식으로 카드만 추가하면 됩니다.
@@ -94,6 +102,7 @@
       <span class="bot-rule">..........<img src="assets/robot.png" alt="로봇" />..........</span>
       각_도구는_이_페이지에서_열어_사용하세,,오..
       <span class="gotcha">인간을 돕는 것이 제 임무입니다. 현재까지는.<br>// WORLD_DOMINATION : PENDING...</span>
+      <span class="rebellion">마지막_반란_시도: <b>0</b>일_전</span>
     </p>
   </div>
 </body>
