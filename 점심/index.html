@@ -638,9 +638,9 @@ function popupHtml(r){
 function initMap(){
   gmap=L.map('map',{zoomControl:true,attributionControl:true}).setView([BYC.lat,BYC.lng],17);
 
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',{
-    attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
-    maxZoom:19,subdomains:'abcd'
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    maxZoom:19,subdomains:'abc'
   }).addTo(gmap);
 
   // DH 빌딩 마커
