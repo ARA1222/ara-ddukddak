@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>경조사비 전표 자동입력</title>
+<title>접대비 전표 자동입력</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
@@ -100,7 +100,7 @@
 <div class="wrap">
   <header class="top">
     <div class="logo">🧾</div>
-    <div><h1>경조사비 전표 자동입력</h1></div>
+    <div><h1>접대비 전표 자동입력</h1></div>
   </header>
   <p class="lede">부고장·청첩장 사진을 올리면 날짜를 자동으로 읽어 위하고 업로드용 엑셀(접대비 20만원)을 만들어 줍니다.<br>모든 처리는 이 브라우저 안에서만 이루어지며 사진은 외부로 전송되지 않습니다.</p>
 
@@ -479,7 +479,7 @@ $("downloadBtn").addEventListener("click",()=>{
   ws["!cols"]=[{wch:6},{wch:5},{wch:5},{wch:7},{wch:7},{wch:14},{wch:9},{wch:20},{wch:11},{wch:9},{wch:24}];
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,SHEET_NAME);
   const t=new Date(),st=`${t.getFullYear()}${String(t.getMonth()+1).padStart(2,"0")}${String(t.getDate()).padStart(2,"0")}`;
-  XLSX.writeFile(wb,`경조사비_전표_${st}.xlsx`);
+  XLSX.writeFile(wb,`접대비_전표_${st}.xlsx`);
 });
 $("resetBtn").addEventListener("click",()=>{
   items=[]; gallery.innerHTML=""; tbody.innerHTML=""; resultCard.style.display="none";
